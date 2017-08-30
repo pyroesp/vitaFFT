@@ -9,6 +9,11 @@ Fast Fourier Transform PoC for PSVita
 This program uses my libFFT for the FFT algorithm.
 
 
+Install vitasdk through vdpm.
+
+Build the software with "cmake . && make".
+
+
 Thanks to :
 
 	- everyone who worked on the vitasdk and vitasdk samples
