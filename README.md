@@ -6,7 +6,7 @@ Fast Fourier Transform PoC for PSVita
 	by pyroesp
 
 
-This program uses my libFFT for the FFT algorithm.
+This program uses my libFFT for the FFT algorithm and it reads the microphone of the vita for the audio samples.
 
 
 Install vitasdk through vdpm.
