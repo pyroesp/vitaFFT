@@ -6,6 +6,11 @@ The audio samples are read throught the internal microphone of the PSVita.
 
 The FFT is setup as a 512 point FFT, see the libfft to know how to increase or decrease the points.
 
+## TODO:
+
+- Fix amplitude value so it isn't longer than the height of the screen
+- Determine the unit of the amplitude (dB, ...)
+
 ## Dependencies
 
 Install vitasdk through vdpm.
