@@ -1,19 +1,3 @@
-/*
-	PSVITA FFT Proof of Concept
-		by pyroesp
- 
-	31/08/2017
-
-	Thanks to:
-		- everyone who worked on the vitasdk 
-		  and vitasdk samples
-		- vita2d lib by xerpi
-
-	This work is licensed under a Creative Commons 
-	Attribution-ShareAlike 4.0 International License.
-*/
-
-
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/audioin.h>
@@ -50,9 +34,12 @@
 
 #define TICK_DELAY 80000
 
+/* draw amplitudes */
 void draw_spectrum(FFT *pspectrum){
 	uint16_t i;
 	uint16_t amp;
+	/* draw only rectangles of size SPECTRUM_WIDTH, from left to
+	   right, until the screen is full */
 	for (i = 0; i < SCREEN_WIDTH / SPECTRUM_WIDTH; i++){
 		amp = (int)(pspectrum[i].amp);
 		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 1, 
@@ -61,12 +48,14 @@ void draw_spectrum(FFT *pspectrum){
 	return;
 }
 
+/* draw arrow function */
 void drawArrow(uint16_t x, uint16_t y, uint32_t color){
 	vita2d_draw_line(x, y, x, y+20, color);
 	vita2d_draw_line(x-3, y+20-7, x, y+20, color);
 	vita2d_draw_line(x+3, y+20-7, x, y+20, color);
 }
 
+/* show menu function */
 void showMenu(vita2d_pgf *pgf, uint8_t sens){
 	uint16_t x, y;
 	x = SCREEN_WIDTH - 400;
@@ -99,10 +88,11 @@ void showMenu(vita2d_pgf *pgf, uint8_t sens){
 }
 
 int main (int argc, char *argv[]){
-	char text[32];
 	uint8_t exit = 0;
 	uint8_t menu = 1;
+	uint16_t i;
 
+	/* Audio in vars */
 	int16_t *audioIn = NULL;
 	int32_t port = 0;
 	uint8_t sens = 1;
@@ -110,63 +100,71 @@ int main (int argc, char *argv[]){
 	int16_t arrowX = SPECTRUM_WIDTH/2;
 	int16_t arrowY = 30;
 	
-	uint16_t i;
+
 	/* Blocks per stage array */
 	uint16_t blocks[FFT_STAGES];
 	/* Butterflies per block per stage */
 	uint16_t butterflies[FFT_STAGES];
 	/* Bit Reversed LUT */
 	uint16_t bit_reversed[FFT_POINT];
-
-	/* Samples */
+	/* Audio samples */
 	float x[FFT_POINT] = {0};
-
 	/* Complex data */
 	Complex data_complex[FFT_POINT];
 	/* Twiddle factor complex array */
 	Complex W[FFT_POINT_2];
-	/* FFT amp & phase */
+	/* FFT amp & phase buffer*/
 	FFT spectrum[FFT_POINT];
 	
 	vita2d_pgf *pgf;
 	SceCtrlData ctrl, oldCtrl;
 	SceRtcTick current, old;
 	
-	/* Set spectrum buffer to 0, just in case */
-	memset(spectrum, 0, sizeof(FFT) * FFT_POINT);
-
+	/* Open microphone port */
 	port = sceAudioInOpenPort(SCE_AUDIO_IN_PORT_TYPE_RAW, MIC_GRAIN,
 				  MIC_FREQ, SCE_AUDIO_IN_PARAM_FORMAT_S16_MONO);
-
+	/* malloc audio in buffer */
 	audioIn = (int16_t*)malloc(sizeof(int16_t) * AUDIO_IN_BUFF);
 	if (0 > port || !audioIn){
 		sceKernelDelayThread(5000000);
 		sceKernelExitProcess(0);
 		return 0;
 	}
+	/* only MIC_GRAIN values are going to be read in the buffer
+	   so the rest of the values in the buffer should be set to 0
+	   aka zero padding */
 	memset(audioIn, 0, sizeof(int16_t) * AUDIO_IN_BUFF);
 
+	/* Pre-setup for FFT library */
 	fft_BlockPerStage(blocks);
 	fft_ButterfliesPerBlocks(butterflies);
 	fft_BitReversedLUT(bit_reversed);
 	fft_TwiddleFactor(W);
+	/* Set spectrum buffer to 0, just in case */
+	memset(spectrum, 0, sizeof(FFT) * FFT_POINT);
 
+	/* vita2d stuff */
 	vita2d_init();
 	vita2d_set_clear_color(COLOR_BLACK);
-
 	pgf = vita2d_load_default_pgf();
 
 	sceRtcGetCurrentTick(&old);
+
+	/* loop while not exiting */
 	while(!exit){
 		sceRtcGetCurrentTick(&current);
 
 		sceAudioInInput(port, (void*)audioIn);
+		/* Normalize audio samples and convert to float */
 		for (i = 0; i < FFT_POINT; ++i){
 			x[i] = ((float)audioIn[i]*(float)sens)/(float)FFT_POINT;
 		}
 
+		/* Convert x buffer from polar to complex */
 		fft_DataToComplex(x, data_complex, bit_reversed);
+		/* Compute FFT algorithm */
 		fft_Compute(data_complex, W, blocks, butterflies);
+		/* Convert data_complex buffer from complex to polar */
 		fft_ComplexToAmpPhase(data_complex, spectrum);
 
 		vita2d_start_drawing();
@@ -174,23 +172,22 @@ int main (int argc, char *argv[]){
 
 		draw_spectrum(spectrum);
 		
-		/* Get the frequency pointed at by the arrow */
-		/* From the FFT_POINT amplitudes, only FFT_POINT_2 are usable */
-		/* We only display SCREEN_WIDTH / SPECTRUM_WIDTH amplitudes */
-		/* arrowX / SPECTRUM_WIDTH should give a value from 0 to SCREEN_WIDTH/SPECTRUM_WIDTH */
-		/* MIC_FREQ / FFT_POINT gives the frequency step */
-		snprintf(text, 32, "freq = %0.2f", 
-			((float)MIC_FREQ / (float)FFT_POINT) * (float)(arrowX / SPECTRUM_WIDTH));
-
-		vita2d_pgf_draw_text(pgf, 10, 20, COLOR_RED, 1.0f, text);
+		/* Get the frequency pointed at by the arrow 
+		   From the FFT_POINT amplitudes, only FFT_POINT_2 are usable 
+		   We only display SCREEN_WIDTH / SPECTRUM_WIDTH amplitudes 
+		   arrowX / SPECTRUM_WIDTH should give a value from 0 to SCREEN_WIDTH/SPECTRUM_WIDTH
+		   MIC_FREQ / FFT_POINT gives the frequency step */
+		vita2d_pgf_draw_textf(pgf, 10, 20, COLOR_RED, 1.0f, "freq = %0.2f",((float)MIC_FREQ / (float)FFT_POINT) * (float)(arrowX / SPECTRUM_WIDTH) );
 		drawArrow(arrowX, arrowY, COLOR_RED);
 
 		if (menu)
 			showMenu(pgf, sens);
 
+		/* vita2d end drawing */
 		vita2d_end_drawing();
 		vita2d_swap_buffers();
 		
+		/* vita controls */
 		sceCtrlPeekBufferPositive(0, &ctrl, 1);
 		if (ctrl.buttons & SCE_CTRL_SELECT)
 			exit = 1;
@@ -217,11 +214,11 @@ int main (int argc, char *argv[]){
 		else if (SCREEN_WIDTH-SPECTRUM_WIDTH/2 < arrowX)
 			arrowX = SCREEN_WIDTH - SPECTRUM_WIDTH/2;
 
-
 		memcpy(&oldCtrl, &ctrl, sizeof(SceCtrlData));
 		sceKernelDelayThread(10000);
 	}
 
+	/* exit */
 	free(audioIn);
 	vita2d_fini();
 	vita2d_free_pgf(pgf);
