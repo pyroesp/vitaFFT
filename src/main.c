@@ -34,16 +34,16 @@
 
 #define TICK_DELAY 80000
 
-/* draw amplitudes */
+/* draw magnitudes */
 void draw_spectrum(FFT *pspectrum){
 	uint16_t i;
-	uint16_t amp;
+	uint16_t mag;
 	/* draw only rectangles of size SPECTRUM_WIDTH, from left to
 	   right, until the screen is full */
 	for (i = 0; i < SCREEN_WIDTH / SPECTRUM_WIDTH; i++){
-		amp = (int)(pspectrum[i].amp);
+		mag = (int)(pspectrum[i].mag);
 		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 1, 
-					SPECTRUM_WIDTH, -amp, COLOR_WHITE);
+					SPECTRUM_WIDTH, -mag, COLOR_WHITE);
 	}
 	return;
 }
@@ -165,7 +165,7 @@ int main (int argc, char *argv[]){
 		/* Compute FFT algorithm */
 		fft_Compute(data_complex, W, blocks, butterflies);
 		/* Convert data_complex buffer from complex to polar */
-		fft_ComplexToAmpPhase(data_complex, spectrum);
+		fft_ComplexToMagnPhase(data_complex, spectrum);
 
 		vita2d_start_drawing();
 		vita2d_clear_screen();	
