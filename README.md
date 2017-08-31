@@ -10,22 +10,22 @@ The FFT is setup as a 512 point FFT, see the libfft to know how to increase or d
 
 Install vitasdk through vdpm.
 
-*ctrl
-*audio in
-*vita2d
-*display
-*rtc
-*gxm
-*sysmodule
-*pgf
-*pvf
-*common dialog
-*freetype
-*png
-*jpeg
-*z
-*m
-*c
+* ctrl
+* audio in
+* vita2d
+* display
+* rtc
+* gxm
+* sysmodule
+* pgf
+* pvf
+* common dialog
+* freetype
+* png
+* jpeg
+* z
+* m
+* c
 
 ## Build software
 
