@@ -35,15 +35,19 @@
 #define TICK_DELAY 80000
 
 /* draw magnitudes */
-void draw_spectrum(FFT *pspectrum){
+void draw_spectrum(FFT *pspectrum, uint8_t magn_or_dB){
 	uint16_t i;
-	uint16_t mag;
+	int32_t val;
 	/* draw only rectangles of size SPECTRUM_WIDTH, from left to
 	   right, until the screen is full */
 	for (i = 0; i < SCREEN_WIDTH / SPECTRUM_WIDTH; i++){
-		mag = (int)(pspectrum[i].mag);
+		if (!magn_or_dB)
+			val = (int32_t)(pspectrum[i].mag);
+		else
+			val = (int32_t)(pspectrum[i].dB);
+
 		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 1, 
-					SPECTRUM_WIDTH, -mag, COLOR_WHITE);
+					SPECTRUM_WIDTH, -val, COLOR_WHITE);
 	}
 	return;
 }
@@ -56,11 +60,11 @@ void drawArrow(uint16_t x, uint16_t y, uint32_t color){
 }
 
 /* show menu function */
-void showMenu(vita2d_pgf *pgf, uint8_t sens){
+void showMenu(vita2d_pgf *pgf, uint8_t sens, uint8_t magn_or_dB){
 	uint16_t x, y;
-	x = SCREEN_WIDTH - 400;
+	x = SCREEN_WIDTH - 420;
 	y = 10;
-	vita2d_draw_rectangle(x, y, 380, 165, COLOR_YELLOW);
+	vita2d_draw_rectangle(x, y, 400, 185, COLOR_YELLOW);
 	x += 10;
 	y += 20;
 	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f,
@@ -74,6 +78,9 @@ void showMenu(vita2d_pgf *pgf, uint8_t sens){
 	y += 25;
 	vita2d_pgf_draw_textf(pgf, x, y, COLOR_BLACK, 1.0f,
 				" - Microphone sensitivity : %d", sens);
+	y += 20;
+	vita2d_pgf_draw_textf(pgf, x, y, COLOR_BLACK, 1.0f,
+				" - Press cross to change display : %s", magn_or_dB?"dB":"Magn");
 	y += 20;
 	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f,
 				" - Show/hide this menu : L_TRIGGER");
@@ -90,6 +97,7 @@ void showMenu(vita2d_pgf *pgf, uint8_t sens){
 int main (int argc, char *argv[]){
 	uint8_t exit = 0;
 	uint8_t menu = 1;
+	uint8_t magn_or_dB = 0;
 	uint16_t i;
 
 	/* Audio in vars */
@@ -165,12 +173,15 @@ int main (int argc, char *argv[]){
 		/* Compute FFT algorithm */
 		fft_Compute(data_complex, W, blocks, butterflies);
 		/* Convert data_complex buffer from complex to polar and normalize output */
-		fft_ComplexToMagnPhase(data_complex, spectrum, 1);
+		/* fft_ComplexToMagnPhase(data_complex, spectrum, 1); */
 
+		/* Convert complex data to magnitude and dB */
+		fft_ComplexTodB(data_complex, spectrum);
+		
 		vita2d_start_drawing();
 		vita2d_clear_screen();	
 
-		draw_spectrum(spectrum);
+		draw_spectrum(spectrum, magn_or_dB);
 		
 		/* Get the frequency pointed at by the arrow 
 		   From the FFT_POINT amplitudes, only FFT_POINT_2 are usable 
@@ -181,7 +192,7 @@ int main (int argc, char *argv[]){
 		drawArrow(arrowX, arrowY, COLOR_RED);
 
 		if (menu)
-			showMenu(pgf, sens);
+			showMenu(pgf, sens, magn_or_dB);
 
 		/* vita2d end drawing */
 		vita2d_end_drawing();
@@ -197,6 +208,8 @@ int main (int argc, char *argv[]){
 			sens--;
 		else if (ctrl.buttons & SCE_CTRL_LTRIGGER && !(oldCtrl.buttons & SCE_CTRL_LTRIGGER))
 			menu = !menu;
+		else if (ctrl.buttons & SCE_CTRL_CROSS && !(oldCtrl.buttons & SCE_CTRL_CROSS))
+			magn_or_dB = !magn_or_dB;
 		
 		if (current.tick > (old.tick + TICK_DELAY)){
 			if (ctrl.buttons & SCE_CTRL_LEFT)
