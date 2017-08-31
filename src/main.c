@@ -157,15 +157,15 @@ int main (int argc, char *argv[]){
 		sceAudioInInput(port, (void*)audioIn);
 		/* Normalize audio samples and convert to float */
 		for (i = 0; i < FFT_POINT; ++i){
-			x[i] = ((float)audioIn[i]*(float)sens)/(float)FFT_POINT;
+			x[i] = (float)audioIn[i]*(float)sens;
 		}
 
 		/* Convert x buffer from polar to complex */
 		fft_DataToComplex(x, data_complex, bit_reversed);
 		/* Compute FFT algorithm */
 		fft_Compute(data_complex, W, blocks, butterflies);
-		/* Convert data_complex buffer from complex to polar */
-		fft_ComplexToMagnPhase(data_complex, spectrum);
+		/* Convert data_complex buffer from complex to polar and normalize output */
+		fft_ComplexToMagnPhase(data_complex, spectrum, 1);
 
 		vita2d_start_drawing();
 		vita2d_clear_screen();	
