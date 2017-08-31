@@ -9,7 +9,7 @@ The FFT is setup as a 512 point FFT, see the libfft to know how to increase or d
 ## TODO:
 
 - Fix amplitude value so it isn't longer than the height of the screen
-- Determine the unit of the amplitude (dB, ...)
+- Determine the unit of the amplitude (dB, ...) - FIXED in libfft
 
 ## Dependencies
 
