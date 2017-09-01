@@ -115,6 +115,8 @@ int main (int argc, char *argv[]){
 	uint16_t butterflies[FFT_STAGES];
 	/* Bit Reversed LUT */
 	uint16_t bit_reversed[FFT_POINT];
+	/* Window function */
+	float window[FFT_POINT] = {0};
 	/* Audio samples */
 	float x[FFT_POINT] = {0};
 	/* Complex data */
@@ -148,6 +150,7 @@ int main (int argc, char *argv[]){
 	fft_ButterfliesPerBlocks(butterflies);
 	fft_BitReversedLUT(bit_reversed);
 	fft_TwiddleFactor(W);
+	fft_Window(FFT_WIN_TRIANGLE, window);
 	/* Set spectrum buffer to 0, just in case */
 	memset(spectrum, 0, sizeof(FFT) * FFT_POINT);
 
@@ -169,7 +172,7 @@ int main (int argc, char *argv[]){
 		}
 
 		/* Convert x buffer from polar to complex */
-		fft_DataToComplex(x, data_complex, bit_reversed);
+		fft_DataToComplex(x, window, data_complex, bit_reversed);
 		/* Compute FFT algorithm */
 		fft_Compute(data_complex, W, blocks, butterflies);
 		/* Convert data_complex buffer from complex to polar and normalize output */
