@@ -9,8 +9,8 @@ The FFT is setup as a 512 point FFT, see the libfft to know how to increase or d
 ## TODO:
 
 - Fix amplitude value so it isn't longer than the height of the screen
-- Determine the unit of the amplitude (dB, ...) - FIXED in libfft
-- Change Y scale depending on what is being shown (dB or magnitude)
+- ~~Determine the unit of the amplitude (dB, ...)~~ - FIXED in libfft
+- ~~Change Y scale depending on what is being shown (dB or magnitude)~~ - DONE in main.c
 
 ## Dependencies
 
@@ -35,7 +35,7 @@ Install vitasdk through vdpm.
 
 ## Build software
 
-Build the software with "cmake . && make".
+Build the software with "cmake . && make" and send to the vita with "curl -T *.vpk ftp:// ..."
 
 ## License:
 
