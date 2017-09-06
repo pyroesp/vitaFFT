@@ -15,6 +15,7 @@
 
 /* ABGR Color */
 #define COLOR_WHITE   (0xFFFFFFFF)
+#define COLOR_GRAY    (0xFF7F7F7F)
 #define COLOR_BLACK   (0xFF000000)
 #define COLOR_RED     (0xFF0000FF)
 #define COLOR_GREEN   (0xFF00FF00)
@@ -36,7 +37,7 @@
 #define TICK_DELAY 80000
 
 /* draw magnitudes */
-void draw_spectrum(FFT *pspectrum, uint8_t magn_or_dB, uint8_t zoomY){
+void draw_spectrum(FFT *pspectrum, uint32_t color, uint8_t magn_or_dB, uint8_t zoomY){
 	uint16_t i;
 	int32_t val;
 	/* draw only rectangles of size SPECTRUM_WIDTH, from left to
@@ -48,7 +49,7 @@ void draw_spectrum(FFT *pspectrum, uint8_t magn_or_dB, uint8_t zoomY){
 			val = (int32_t)(pspectrum[i].dB);
 
 		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 3, 
-					SPECTRUM_WIDTH, -val * zoomY, COLOR_WHITE);
+					SPECTRUM_WIDTH, -val * zoomY, color);
 	}
 	return;
 }
@@ -161,7 +162,7 @@ int main (int argc, char *argv[]){
 
 	/* vita2d stuff */
 	vita2d_init();
-	vita2d_set_clear_color(COLOR_BLACK);
+	vita2d_set_clear_color(COLOR_GRAY);
 	pgf = vita2d_load_default_pgf();
 
 	/* Read tick */
@@ -194,7 +195,7 @@ int main (int argc, char *argv[]){
 		vita2d_start_drawing();
 		vita2d_clear_screen();	
 
-		draw_spectrum(spectrum, magn_or_dB, zoomY);
+		draw_spectrum(spectrum, COLOR_CYAN, magn_or_dB, zoomY);
 		
 		/* 
 			Get the frequency pointed at by the cursor 
@@ -203,10 +204,11 @@ int main (int argc, char *argv[]){
 			cursorX / SPECTRUM_WIDTH should give a value from 0 to SCREEN_WIDTH/SPECTRUM_WIDTH
 			MIC_FREQ / FFT_POINT gives the frequency step (48000Hz/512=93.75Hz)
 		*/
-		drawCursor(cursorX, cursorY, cursorSize, COLOR_RED);
 		
-		if (menu)
+		if (menu){
 			showMenu(pgf, sens, magn_or_dB, ((float)MIC_FREQ / (float)FFT_POINT) * (float)(cursorX / SPECTRUM_WIDTH));
+			drawCursor(cursorX, cursorY, cursorSize, COLOR_YELLOW);
+		}
 
 		/* vita2d end drawing */
 		vita2d_end_drawing();
