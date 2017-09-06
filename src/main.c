@@ -13,13 +13,6 @@
 
 #include "fft.h"
 
-#define MIC_FREQ 48000
-#define MIC_GRAIN 768
-#define AUDIO_IN_BUFF 1024
-
-#define SCREEN_WIDTH 960
-#define SCREEN_HEIGHT 544
-
 /* ABGR Color */
 #define COLOR_WHITE   (0xFFFFFFFF)
 #define COLOR_BLACK   (0xFF000000)
@@ -30,12 +23,20 @@
 #define COLOR_MAGENTA (0xFFFF00FF)
 #define COLOR_YELLOW  (0xFF00FFFF)
 
+#define MIC_FREQ 48000
+#define MIC_GRAIN 768
+/* Audio in buffer has to be at least MIC_GRAIN */
+#define AUDIO_IN_BUFF MIC_GRAIN
+
+#define SCREEN_WIDTH 960
+#define SCREEN_HEIGHT 544
+
 #define SPECTRUM_WIDTH 4
 
 #define TICK_DELAY 80000
 
 /* draw magnitudes */
-void draw_spectrum(FFT *pspectrum, uint8_t magn_or_dB){
+void draw_spectrum(FFT *pspectrum, uint8_t magn_or_dB, uint8_t zoomY){
 	uint16_t i;
 	int32_t val;
 	/* draw only rectangles of size SPECTRUM_WIDTH, from left to
@@ -46,38 +47,40 @@ void draw_spectrum(FFT *pspectrum, uint8_t magn_or_dB){
 		else
 			val = (int32_t)(pspectrum[i].dB);
 
-		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 1, 
-					SPECTRUM_WIDTH, -val, COLOR_WHITE);
+		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 3, 
+					SPECTRUM_WIDTH, -val * zoomY, COLOR_WHITE);
 	}
 	return;
 }
 
-/* draw arrow function */
-void drawArrow(uint16_t x, uint16_t y, uint32_t color){
-	vita2d_draw_line(x, y, x, y+20, color);
-	vita2d_draw_line(x-3, y+20-7, x, y+20, color);
-	vita2d_draw_line(x+3, y+20-7, x, y+20, color);
+/* draw cursor function */
+void drawCursor(uint16_t x, uint16_t y, uint16_t cursorSize, uint32_t color){
+	vita2d_draw_line(x, y - cursorSize, x, y + cursorSize, color);
+	vita2d_draw_line(x - cursorSize, y, x + cursorSize, y, color);
 }
 
 /* show menu function */
-void showMenu(vita2d_pgf *pgf, uint8_t sens, uint8_t magn_or_dB){
+void showMenu(vita2d_pgf *pgf, uint8_t sens, uint8_t magn_or_dB, float freq){
 	uint16_t x, y;
+	uint16_t textWidth;
 	x = SCREEN_WIDTH - 420;
 	y = 10;
 	vita2d_draw_rectangle(x, y, 400, 185, COLOR_YELLOW);
 	x += 10;
 	y += 20;
-	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f,
-				"          512 point Radix-2 FFT");
+	textWidth = vita2d_pgf_text_width(pgf, 1.0f, "512 point Radix-2 FFT");
+	vita2d_pgf_draw_text(pgf, (x - 10) + (400 - textWidth)/2, y, COLOR_BLACK, 1.0f,
+				"512 point Radix-2 FFT");
 	y += 25;
-	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f,
-				"           = Proof of Concept =");
-	y += 25;
-	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f, 
-				"                  by pyroesp");
+	textWidth = vita2d_pgf_text_width(pgf, 1.0f, "by pyroesp");
+	vita2d_pgf_draw_text(pgf, (x - 10) + (400 - textWidth)/2, y, COLOR_BLACK, 1.0f, 
+				"by pyroesp");
 	y += 25;
 	vita2d_pgf_draw_textf(pgf, x, y, COLOR_BLACK, 1.0f,
-				" - Microphone sensitivity : %d", sens);
+				" - Microphone sensitivity (up/down): %d", sens);
+	y += 20;
+	vita2d_pgf_draw_textf(pgf, x, y, COLOR_BLACK, 1.0f,
+				" - Cursor frequency: %0.2f", freq);
 	y += 20;
 	vita2d_pgf_draw_textf(pgf, x, y, COLOR_BLACK, 1.0f,
 				" - Press cross to change display : %s", magn_or_dB?"dB":"Magn");
@@ -86,7 +89,7 @@ void showMenu(vita2d_pgf *pgf, uint8_t sens, uint8_t magn_or_dB){
 				" - Show/hide this menu : L_TRIGGER");
 	y += 20;
 	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f,
-				" - Use left & right to move the arrow");
+				" - Use left stick to move the cursor");
 	y += 20;
 	vita2d_pgf_draw_text(pgf, x, y, COLOR_BLACK, 1.0f,
 				" - Use select to exit");
@@ -105,9 +108,11 @@ int main (int argc, char *argv[]){
 	int32_t port = 0;
 	uint8_t sens = 1;
 
-	int16_t arrowX = SPECTRUM_WIDTH/2;
-	int16_t arrowY = 30;
+	int16_t cursorX = SPECTRUM_WIDTH/2 * 50;
+	int16_t cursorY = SCREEN_HEIGHT/2;
+	uint16_t cursorSize = 5;
 	
+	uint8_t zoomY = 1;
 
 	/* Blocks per stage array */
 	uint16_t blocks[FFT_STAGES];
@@ -150,7 +155,7 @@ int main (int argc, char *argv[]){
 	fft_ButterfliesPerBlocks(butterflies);
 	fft_BitReversedLUT(bit_reversed);
 	fft_TwiddleFactor(W);
-	fft_Window(FFT_WIN_TRIANGLE, window);
+	fft_Window(FFT_WIN_BLACKMAN, window);
 	/* Set spectrum buffer to 0, just in case */
 	memset(spectrum, 0, sizeof(FFT) * FFT_POINT);
 
@@ -159,12 +164,17 @@ int main (int argc, char *argv[]){
 	vita2d_set_clear_color(COLOR_BLACK);
 	pgf = vita2d_load_default_pgf();
 
+	/* Read tick */
 	sceRtcGetCurrentTick(&old);
+	
+	/* Enable analog sampling */
+	sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
 
 	/* loop while not exiting */
 	while(!exit){
 		sceRtcGetCurrentTick(&current);
 
+		/* Read microphone */
 		sceAudioInInput(port, (void*)audioIn);
 		/* Normalize audio samples and convert to float */
 		for (i = 0; i < FFT_POINT; ++i){
@@ -184,18 +194,19 @@ int main (int argc, char *argv[]){
 		vita2d_start_drawing();
 		vita2d_clear_screen();	
 
-		draw_spectrum(spectrum, magn_or_dB);
+		draw_spectrum(spectrum, magn_or_dB, zoomY);
 		
-		/* Get the frequency pointed at by the arrow 
-		   From the FFT_POINT amplitudes, only FFT_POINT_2 are usable 
-		   We only display SCREEN_WIDTH / SPECTRUM_WIDTH amplitudes 
-		   arrowX / SPECTRUM_WIDTH should give a value from 0 to SCREEN_WIDTH/SPECTRUM_WIDTH
-		   MIC_FREQ / FFT_POINT gives the frequency step */
-		vita2d_pgf_draw_textf(pgf, 10, 20, COLOR_RED, 1.0f, "freq = %0.2f",((float)MIC_FREQ / (float)FFT_POINT) * (float)(arrowX / SPECTRUM_WIDTH) );
-		drawArrow(arrowX, arrowY, COLOR_RED);
-
+		/* 
+			Get the frequency pointed at by the cursor 
+			From the FFT_POINT amplitudes, only FFT_POINT_2 are usable (=512/2=256)
+			We only display SCREEN_WIDTH / SPECTRUM_WIDTH amplitudes (=960/4=240)
+			cursorX / SPECTRUM_WIDTH should give a value from 0 to SCREEN_WIDTH/SPECTRUM_WIDTH
+			MIC_FREQ / FFT_POINT gives the frequency step (48000Hz/512=93.75Hz)
+		*/
+		drawCursor(cursorX, cursorY, cursorSize, COLOR_RED);
+		
 		if (menu)
-			showMenu(pgf, sens, magn_or_dB);
+			showMenu(pgf, sens, magn_or_dB, ((float)MIC_FREQ / (float)FFT_POINT) * (float)(cursorX / SPECTRUM_WIDTH));
 
 		/* vita2d end drawing */
 		vita2d_end_drawing();
@@ -211,24 +222,46 @@ int main (int argc, char *argv[]){
 			sens--;
 		else if (ctrl.buttons & SCE_CTRL_LTRIGGER && !(oldCtrl.buttons & SCE_CTRL_LTRIGGER))
 			menu = !menu;
-		else if (ctrl.buttons & SCE_CTRL_CROSS && !(oldCtrl.buttons & SCE_CTRL_CROSS))
+		else if (ctrl.buttons & SCE_CTRL_CROSS && !(oldCtrl.buttons & SCE_CTRL_CROSS)){
 			magn_or_dB = !magn_or_dB;
+			if (magn_or_dB)
+				zoomY = 5;
+			else
+				zoomY = 1;
+		}
 		
 		if (current.tick > (old.tick + TICK_DELAY)){
-			if (ctrl.buttons & SCE_CTRL_LEFT)
-				arrowX -= SPECTRUM_WIDTH;	
-			else if (ctrl.buttons & SCE_CTRL_RIGHT)
-				arrowX += SPECTRUM_WIDTH;
+			if (ctrl.ly > 240)
+				cursorY += 8;
+			else if (ctrl.ly > 150)
+				cursorY++;
+			else if (ctrl.ly < 10)
+				cursorY -= 8;
+			else if (ctrl.ly < 105)
+				cursorY--;
+			
+			if (ctrl.lx > 240)
+				cursorX += SPECTRUM_WIDTH * 3;
+			else if (ctrl.lx > 200)
+				cursorX += SPECTRUM_WIDTH;	
+			else if (ctrl.lx < 10)
+				cursorX -= SPECTRUM_WIDTH * 3;	
+			else if (ctrl.lx < 55)
+				cursorX -= SPECTRUM_WIDTH;
 
 			memcpy(&old, &current, sizeof(SceRtcTick));
 		}
 
 		if (0 >= sens)
 			sens = 1;
-		if (0 > arrowX)
-			arrowX = SPECTRUM_WIDTH/2;
-		else if (SCREEN_WIDTH-SPECTRUM_WIDTH/2 < arrowX)
-			arrowX = SCREEN_WIDTH - SPECTRUM_WIDTH/2;
+		if (cursorSize > cursorY)
+			cursorY = cursorSize;
+		else if (SCREEN_HEIGHT - cursorSize < cursorY)
+			cursorY = SCREEN_HEIGHT - cursorSize;
+		if (0 > cursorX)
+			cursorX = SPECTRUM_WIDTH/2;
+		else if (SCREEN_WIDTH-SPECTRUM_WIDTH/2 < cursorX)
+			cursorX = SCREEN_WIDTH - SPECTRUM_WIDTH/2;
 
 		memcpy(&oldCtrl, &ctrl, sizeof(SceCtrlData));
 		sceKernelDelayThread(10000);
