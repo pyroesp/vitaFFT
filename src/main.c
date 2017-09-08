@@ -43,13 +43,13 @@ void draw_spectrum(FFT *pspectrum, uint32_t color, uint8_t magn_or_dB, uint8_t z
 	/* draw only rectangles of size SPECTRUM_WIDTH, from left to
 	   right, until the screen is full */
 	for (i = 0; i < SCREEN_WIDTH / SPECTRUM_WIDTH; i++){
-		if (!magn_or_dB)
+		if (!magn_or_dB){
 			val = (int32_t)(pspectrum[i].mag);
-		else
+			vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 3, SPECTRUM_WIDTH, -val * zoomY, color);
+		}else{
 			val = (int32_t)(pspectrum[i].dB);
-
-		vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT - 3, 
-					SPECTRUM_WIDTH, -val * zoomY, color);
+			vita2d_draw_rectangle(i * SPECTRUM_WIDTH, SCREEN_HEIGHT/2, SPECTRUM_WIDTH, -val * zoomY, color);
+		}
 	}
 	return;
 }
