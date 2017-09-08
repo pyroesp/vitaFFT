@@ -1,6 +1,7 @@
 CMakeFiles/*
 CMakeCache*
-mic*
+*.vpk*
+*.*elf
 cmake*
 Makefile
-*.swp
+VitaFFT
